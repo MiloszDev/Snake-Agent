@@ -1,70 +1,60 @@
 import torch
 import torch.nn as nn
+from pathlib import Path
 import torch.optim as optim
 import torch.nn.functional as F
-import os
 
-class Linear_QNet(nn.Module):
+class QNetwork(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super().__init__()
-        self.linear1 = nn.Linear(input_size, hidden_size)
-        self.linear2 = nn.Linear(hidden_size, output_size)
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        x = F.relu(self.linear1(x))
-        x = self.linear2(x)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
         return x
 
-    def save(self, file_name='model.pth'):
-        model_folder_path = './models'
-        if not os.path.exists(model_folder_path):
-            os.makedirs(model_folder_path)
+    def save_model(self, file_name='model.pth'):
+        model_directory = Path('./models')
+        model_directory.mkdir(parents=True, exist_ok=True)
+        file_path = model_directory / file_name
+        
+        torch.save(self.state_dict(), file_path)
+    
 
-        file_name = os.path.join(model_folder_path, file_name)
-        torch.save(self.state_dict(), file_name)
-
-
-class QTrainer:
+class Trainer:
     def __init__(self, model, lr, gamma):
-        self.lr = lr
+        self.learning_rate = lr
         self.gamma = gamma
         self.model = model
-        self.optimizer = optim.Adam(model.parameters(), lr=self.lr)
-        self.criterion = nn.MSELoss()
+        self.optimizer = optim.Adam(model.parameters(), lr=self.learning_rate)
+        self.loss_function = nn.MSELoss()
 
     def train_step(self, state, action, reward, next_state, done):
-        state = torch.tensor(state, dtype=torch.float)
-        next_state = torch.tensor(next_state, dtype=torch.float)
-        action = torch.tensor(action, dtype=torch.long)
-        reward = torch.tensor(reward, dtype=torch.float)
-        # (n, x)
+        state_tensor = torch.tensor(state, dtype=torch.float)
+        next_state_tensor = torch.tensor(next_state, dtype=torch.float)
+        action_tensor = torch.tensor(action, dtype=torch.long)
+        reward_tensor = torch.tensor(reward, dtype=torch.float)
 
-        if len(state.shape) == 1:
-            # (1, x)
-            state = torch.unsqueeze(state, 0)
-            next_state = torch.unsqueeze(next_state, 0)
-            action = torch.unsqueeze(action, 0)
-            reward = torch.unsqueeze(reward, 0)
-            done = (done, )
+        if len(state_tensor.shape) == 1:
+            state_tensor = state_tensor.unsqueeze(0)
+            next_state_tensor = next_state_tensor.unsqueeze(0)
+            action_tensor = action_tensor.unsqueeze(0)
+            reward_tensor = reward_tensor.unsqueeze(0)
+            done = (done,)
 
-        # 1: predicted Q values with current state
-        pred = self.model(state)
+        predicted_q_values = self.model(state_tensor)
+        target_q_values = predicted_q_values.clone()
 
-        target = pred.clone()
         for idx in range(len(done)):
-            Q_new = reward[idx]
+            updated_q_value = reward_tensor[idx]
             if not done[idx]:
-                Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx]))
+                updated_q_value += self.gamma * torch.max(self.model(next_state_tensor[idx]))
 
-            target[idx][torch.argmax(action[idx]).item()] = Q_new
-    
-        # 2: Q_new = r + y * max(next_predicted Q value) -> only do this if not done
-        # pred.clone()
-        # preds[argmax(action)] = Q_new
+            target_q_values[idx][torch.argmax(action_tensor[idx]).item()] = updated_q_value
+
         self.optimizer.zero_grad()
-        loss = self.criterion(target, pred)
+        loss = self.loss_function(target_q_values, predicted_q_values)
         loss.backward()
-
         self.optimizer.step()
-
-
