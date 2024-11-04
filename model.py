@@ -24,10 +24,13 @@ class QNetwork(nn.Module):
     
 
 class Trainer:
-    def __init__(self, model, lr, gamma):
+    def __init__(self, model, lr, gamma, pretrained=False):
         self.learning_rate = lr
         self.gamma = gamma
         self.model = model
+        self.pretrained = pretrained
+        if pretrained:
+            self.model.load_state_dict(torch.load('./models/model.pth'))
         self.optimizer = optim.Adam(model.parameters(), lr=self.learning_rate)
         self.loss_function = nn.MSELoss()
 

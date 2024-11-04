@@ -3,4 +3,4 @@
 3. Create a bigger Neural Network
 4. Change saving model function
 5. Create a nice readme.md file
-6. Add requirements.txt file
+6. Add requirements.txt file +

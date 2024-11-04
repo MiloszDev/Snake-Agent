@@ -18,7 +18,7 @@ class SnakeAgent:
         self.discount_factor = 0.9
         self.memory = deque(maxlen=MAX_MEMORY_SIZE)
         self.q_network = QNetwork(11, 256, 3)
-        self.trainer = Trainer(self.q_network, lr=LEARNING_RATE, gamma=self.discount_factor)
+        self.trainer = Trainer(self.q_network, lr=LEARNING_RATE, gamma=self.discount_factor, pretrained=True)
 
     def get_state(self, game):
         head_position = game.snake[0]
@@ -108,7 +108,8 @@ def train_snake_agent():
 
             if current_score > highest_score:
                 highest_score = current_score
-                agent.q_network.save_model()
+                if agent.trainer.pretrained == False:
+                    agent.q_network.save_model()
 
             print(f'Game {agent.game_count} | Score: {current_score} | Record: {highest_score}')
 
