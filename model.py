@@ -8,12 +8,14 @@ class QNetwork(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super().__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, output_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, output_size)
 
+        self.relu = nn.ReLU()
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        return self.fc3(x)
 
     def save_model(self, file_name='model.pth'):
         model_directory = Path('./models')
@@ -28,11 +30,16 @@ class Trainer:
         self.learning_rate = lr
         self.gamma = gamma
         self.model = model
+        self.target_model = QNetwork(model.fc1.in_features, model.fc1.out_features, model.fc3.out_features)
+        self.target_model.load_state_dict(self.model.state_dict())
         self.pretrained = pretrained
         if pretrained:
             self.model.load_state_dict(torch.load('./models/model.pth'))
         self.optimizer = optim.Adam(model.parameters(), lr=self.learning_rate)
         self.loss_function = nn.MSELoss()
+
+    def update_target_model(self):
+        self.target_model.load_state_dict(self.model.state_dict())
 
     def train_step(self, state, action, reward, next_state, done):
         state_tensor = torch.tensor(state, dtype=torch.float)
@@ -48,11 +55,14 @@ class Trainer:
             done = (done,)
 
         predicted_q_values = self.model(state_tensor)
+
         target_q_values = predicted_q_values.clone()
 
         for idx in range(len(done)):
             updated_q_value = reward_tensor[idx]
             if not done[idx]:
+                next_action = torch.argmax(self.model(next_state_tensor[idx])).item()
+
                 updated_q_value += self.gamma * torch.max(self.model(next_state_tensor[idx]))
 
             target_q_values[idx][torch.argmax(action_tensor[idx]).item()] = updated_q_value

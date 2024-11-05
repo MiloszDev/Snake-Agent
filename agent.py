@@ -11,14 +11,13 @@ BATCH_SIZE = 1000
 LEARNING_RATE = 0.001
 
 class SnakeAgent:
-
     def __init__(self):
         self.game_count = 0
         self.epsilon = 0
         self.discount_factor = 0.9
         self.memory = deque(maxlen=MAX_MEMORY_SIZE)
         self.q_network = QNetwork(11, 256, 3)
-        self.trainer = Trainer(self.q_network, lr=LEARNING_RATE, gamma=self.discount_factor, pretrained=True)
+        self.trainer = Trainer(self.q_network, lr=LEARNING_RATE, gamma=self.discount_factor)
 
     def get_state(self, game):
         head_position = game.snake[0]
@@ -86,8 +85,11 @@ class SnakeAgent:
 def train_snake_agent():
     score_history = []
     mean_score_history = []
+
     total_score = 0
     highest_score = 0
+    update_target_freq = 10
+
     agent = SnakeAgent()
     game_instance = SnakeGame()
     
@@ -105,6 +107,9 @@ def train_snake_agent():
             game_instance.reset()
             agent.game_count += 1
             agent.train_long_memory()
+
+            if agent.game_count % update_target_freq == 0:
+                agent.trainer.update_target_model()
 
             if current_score > highest_score:
                 highest_score = current_score
